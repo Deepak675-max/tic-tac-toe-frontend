@@ -1,0 +1,49 @@
+:root {
+  --text: #c4c2ce;
+  --text-h: #f4f2fa;
+  --muted: #8b8799;
+  --bg: #0b0c10;
+  --border: #2a2c38;
+  --card-bg: rgba(22, 24, 32, 0.85);
+  --input-bg: #12141c;
+  --btn-bg: #1a1c26;
+  --accent: #a3e635;
+  --danger: #f87171;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+
+  font-family:
+    'DM Sans',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(163, 230, 53, 0.12), transparent),
+    var(--bg);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@media (max-width: 719px) {
+  body.nav-menu-open {
+    overflow: hidden;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
