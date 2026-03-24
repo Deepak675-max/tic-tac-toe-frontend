@@ -12,6 +12,22 @@ function getToken(): string | null {
   return localStorage.getItem('token');
 }
 
+function errorMessageFromBody(
+  json: unknown,
+  fallback: string,
+): string {
+  if (!json || typeof json !== 'object') return fallback;
+  const o = json as Record<string, unknown>;
+  if (o.success === false && o.message !== undefined) {
+    const m = o.message;
+    return Array.isArray(m) ? m.join(', ') : String(m);
+  }
+  if (typeof o.message === 'string') return o.message;
+  if (Array.isArray(o.message)) return o.message.join(', ');
+  if (typeof o.error === 'string') return o.error;
+  return fallback;
+}
+
 export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
@@ -33,15 +49,36 @@ export async function apiRequest<T>(
   }
 
   const res = await fetch(`${API_URL}${path}`, { ...init, headers });
-  const json = (await res.json()) as ApiSuccess<T> | ApiError;
+  const raw = await res.text();
+  const trimmed = raw.trim();
 
-  if (!res.ok || json.success === false) {
-    const err = json as ApiError;
-    const msg = Array.isArray(err.message)
-      ? err.message.join(', ')
-      : err.message;
-    throw new Error(msg || res.statusText);
+  if (!trimmed) {
+    if (!res.ok) {
+      throw new Error(res.statusText || `Request failed (${res.status})`);
+    }
+    return undefined as T;
   }
 
-  return (json as ApiSuccess<T>).data;
+  let json: unknown;
+  try {
+    json = JSON.parse(trimmed);
+  } catch {
+    if (!res.ok) {
+      throw new Error(trimmed.slice(0, 200) || res.statusText);
+    }
+    throw new Error('Server returned invalid JSON');
+  }
+
+  if (!res.ok || (json as ApiError).success === false) {
+    throw new Error(
+      errorMessageFromBody(json, res.statusText || 'Request failed'),
+    );
+  }
+
+  const envelope = json as ApiSuccess<T>;
+  if (envelope.success === true && 'data' in envelope) {
+    return envelope.data;
+  }
+
+  return json as T;
 }

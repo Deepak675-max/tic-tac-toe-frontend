@@ -13,3 +13,10 @@ export async function listMyMatches(limit = 50): Promise<PublicMatchState[]> {
     method: 'GET',
   });
 }
+
+/** POST /api/v1/matches/:matchId/leave — leave the match on the server. */
+export async function postMatchLeave(matchId: string): Promise<void> {
+  await apiRequest<unknown>(`/matches/${matchId}/leave`, {
+    method: 'POST',
+  });
+}

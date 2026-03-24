@@ -22,7 +22,13 @@ export function GameRoom({ matchId, initialState, onLeave }: GameRoomProps) {
   const [socketError, setSocketError] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  /** True after user clicks Leave match — cleanup skips a second `leaveMatch` emit. */
+  const leftMatchExplicitlyRef = useRef(false);
+  /** Avoid effect deps on `initialState` object identity from the parent. */
+  const initialStateRef = useRef(initialState);
+  initialStateRef.current = initialState;
 
   const loadRest = useCallback(async () => {
     try {
@@ -50,7 +56,7 @@ export function GameRoom({ matchId, initialState, onLeave }: GameRoomProps) {
         (ack: { event?: string; state?: PublicMatchState } | undefined) => {
           if (ack?.state) {
             setState(ack.state);
-          } else if (!initialState) {
+          } else if (!initialStateRef.current) {
             void loadRest();
           }
         },
@@ -72,16 +78,73 @@ export function GameRoom({ matchId, initialState, onLeave }: GameRoomProps) {
       },
     );
 
-    if (!initialState) {
+    if (!initialStateRef.current) {
       void loadRest();
     }
 
     return () => {
-      socket.emit('leaveMatch', { matchId });
-      socket.disconnect();
+      socket.off('connect');
+      socket.off('connect_error');
+      socket.off('state');
+      socket.off(WS_MOVE_ERROR);
+      if (!leftMatchExplicitlyRef.current && socket.connected) {
+        socket.emit('leaveMatch', { matchId });
+      }
       socketRef.current = null;
+      // Defer disconnect so we do not abort a WebSocket still in the handshake
+      // (e.g. fast tab switch or effect re-run).
+      const s = socket;
+      queueMicrotask(() => {
+        s.disconnect();
+      });
     };
-  }, [token, player, matchId, initialState, loadRest]);
+  }, [token, player, matchId, loadRest]);
+
+  /** Socket `leaveMatch` + navigate away (no REST `/matches/:id/leave`). */
+  function exitMatchRoom() {
+    leftMatchExplicitlyRef.current = true;
+
+    const finish = () => {
+      onLeave();
+    };
+
+    const socket = socketRef.current;
+    if (socket?.connected) {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        finish();
+      };
+      socket.emit('leaveMatch', { matchId }, () => done());
+      window.setTimeout(done, 2000);
+    } else {
+      finish();
+    }
+  }
+
+  function handleBack() {
+    if (leaving) return;
+    setLeaving(true);
+    setMoveError(null);
+    exitMatchRoom();
+  }
+
+  async function handleLeaveGame() {
+    if (leaving) return;
+    setLeaving(true);
+    setMoveError(null);
+    try {
+      await matchesApi.postMatchLeave(matchId);
+    } catch (e) {
+      setLeaving(false);
+      setMoveError(
+        e instanceof Error ? e.message : 'Could not leave this match.',
+      );
+      return;
+    }
+    exitMatchRoom();
+  }
 
   function sendMove(row: number, col: number) {
     const s = socketRef.current;
@@ -132,9 +195,26 @@ export function GameRoom({ matchId, initialState, onLeave }: GameRoomProps) {
           )}
           {!state && <p className="muted small mono">{matchId}</p>}
         </div>
-        <button type="button" className="btn ghost" onClick={onLeave}>
-          Back to menu
-        </button>
+        <div className="game-header-actions">
+          <button
+            type="button"
+            className="btn ghost game-back-btn"
+            onClick={handleBack}
+            disabled={leaving}
+            title="Return to the menu (does not call the leave match API)"
+          >
+            Back
+          </button>
+          <button
+            type="button"
+            className="btn game-leave-btn"
+            onClick={() => void handleLeaveGame()}
+            disabled={leaving}
+            title="POST /matches/…/leave, then disconnect from the game socket"
+          >
+            {leaving ? 'Leaving…' : 'Leave game'}
+          </button>
+        </div>
       </header>
 
       {socketError && <p className="error">{socketError}</p>}
@@ -183,7 +263,7 @@ export function GameRoom({ matchId, initialState, onLeave }: GameRoomProps) {
             state={state}
             myPlayerId={player.id}
             onCellClick={sendMove}
-            disabled={busy}
+            disabled={busy || leaving}
             onTurnExpired={loadRest}
           />
         </>

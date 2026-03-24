@@ -2,7 +2,8 @@ import { useEffect, useId, useState, useSyncExternalStore } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const MOBILE_NAV_QUERY = '(max-width: 768px)';
+/** Matches `@media (max-width: 719px)` nav-toggle rules in `App.css`. */
+const COLLAPSE_NAV_QUERY = '(max-width: 719px)';
 
 function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(
@@ -19,67 +20,63 @@ function useMediaQuery(query: string): boolean {
 export function AppLayout() {
   const { player, logout } = useAuth();
   const location = useLocation();
-  const [navOpen, setNavOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const navPanelId = useId();
-  const mobileNav = useMediaQuery(MOBILE_NAV_QUERY);
+  const collapseNav = useMediaQuery(COLLAPSE_NAV_QUERY);
 
   useEffect(() => {
-    setNavOpen(false);
+    setMenuOpen(false);
   }, [location.pathname]);
 
-  const drawerOpen = mobileNav && navOpen;
+  useEffect(() => {
+    if (!menuOpen) {
+      document.body.classList.remove('nav-menu-open');
+      return;
+    }
+    document.body.classList.add('nav-menu-open');
+    return () => document.body.classList.remove('nav-menu-open');
+  }, [menuOpen]);
 
   useEffect(() => {
-    if (!drawerOpen) return;
+    if (!menuOpen || !collapseNav) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setNavOpen(false);
+      if (e.key === 'Escape') setMenuOpen(false);
     };
     document.addEventListener('keydown', onKey);
-    document.body.classList.add('nav-drawer-open');
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.classList.remove('nav-drawer-open');
-    };
-  }, [drawerOpen]);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [menuOpen, collapseNav]);
 
-  function closeNav() {
-    setNavOpen(false);
+  function closeMenu() {
+    setMenuOpen(false);
   }
 
   return (
     <div className="app-frame">
       <header className="top-nav">
-        <NavLink to="/" className="brand" end onClick={closeNav}>
-          Tic Tac Toe
-        </NavLink>
-        <button
-          type="button"
-          className={`nav-menu-btn ${drawerOpen ? 'is-open' : ''}`}
-          aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
-          aria-expanded={drawerOpen}
-          aria-controls={navPanelId}
-          onClick={() => setNavOpen((o) => !o)}
-        >
-          <span className="nav-menu-bars" aria-hidden>
-            <span />
-            <span />
-            <span />
-          </span>
-        </button>
-        {drawerOpen && (
+        <div className="top-nav-head">
+          <NavLink to="/" className="brand" end onClick={closeMenu}>
+            Tic Tac Toe
+          </NavLink>
           <button
             type="button"
-            className="nav-backdrop"
-            tabIndex={-1}
-            aria-label="Close menu"
-            onClick={closeNav}
-          />
-        )}
+            className={`nav-menu-btn ${menuOpen ? 'is-open' : ''}`}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            aria-controls={navPanelId}
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            <span className="nav-menu-bars" aria-hidden>
+              <span />
+              <span />
+              <span />
+            </span>
+          </button>
+        </div>
         <div
           id={navPanelId}
-          className={`nav-panel ${drawerOpen ? 'is-open' : ''}`}
-          aria-hidden={mobileNav && !drawerOpen ? true : undefined}
-          inert={mobileNav && !drawerOpen ? true : undefined}
+          className={`nav-panel ${menuOpen ? 'is-open' : ''}`}
+          aria-hidden={collapseNav && !menuOpen ? true : undefined}
+          inert={collapseNav && !menuOpen ? true : undefined}
         >
           <nav className="nav-links" aria-label="Main">
             <NavLink
@@ -88,7 +85,7 @@ export function AppLayout() {
                 isActive ? 'nav-link is-active' : 'nav-link'
               }
               end
-              onClick={closeNav}
+              onClick={closeMenu}
             >
               Play
             </NavLink>
@@ -97,7 +94,7 @@ export function AppLayout() {
               className={({ isActive }) =>
                 isActive ? 'nav-link is-active' : 'nav-link'
               }
-              onClick={closeNav}
+              onClick={closeMenu}
             >
               Leaderboard
             </NavLink>
@@ -106,7 +103,7 @@ export function AppLayout() {
               className={({ isActive }) =>
                 isActive ? 'nav-link is-active' : 'nav-link'
               }
-              onClick={closeNav}
+              onClick={closeMenu}
             >
               My games
             </NavLink>
@@ -115,7 +112,7 @@ export function AppLayout() {
               className={({ isActive }) =>
                 isActive ? 'nav-link is-active' : 'nav-link'
               }
-              onClick={closeNav}
+              onClick={closeMenu}
             >
               How it works
             </NavLink>
@@ -128,7 +125,7 @@ export function AppLayout() {
               type="button"
               className="btn ghost btn-sm"
               onClick={() => {
-                closeNav();
+                closeMenu();
                 logout();
               }}
             >

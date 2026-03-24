@@ -38,8 +38,10 @@ body {
   min-height: 100vh;
 }
 
-body.nav-drawer-open {
-  overflow: hidden;
+@media (max-width: 719px) {
+  body.nav-menu-open {
+    overflow: hidden;
+  }
 }
 
 * {
